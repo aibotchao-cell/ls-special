@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { hitCry } from './sfx.js';
 
 // ---------------------------------------------------------------------------
 // LS 特輯：場上的對手
@@ -204,6 +205,12 @@ export class Enemy {
     this.maxHealth = cfg.health;
     this.health = cfg.health;
     this.tackleCd = 0;
+    // ---- 悠閒亂晃用的狀態 ----
+    this.tgt = { x, z };              // 目前想走去的巡邏點
+    this.roamT = 0.4 + Math.random() * 2.2;
+    this.pauseT = 0;
+    this.aggr = Math.random();        // 每個人不同：只有一部分會想靠近玩家
+    this.cryCd = 0;                   // 叫聲冷卻（不要鬼叫個不停）
     this.burn = 0;                 // 著火剩餘秒數
     this.burnDps = 0;
     this.hitFlash = 0;
@@ -285,6 +292,8 @@ export class Enemy {
     this.vel.z += knock.z * 0.35;
     if (knock.up > 6) this.vel.y = Math.max(this.vel.y, 3.2);      // 旋風球會把人大隻彈起來
     this.hitFlash = 0.15;
+    // ★ 被打到就發出「這個角色該有的」戲劇化叫聲（有冷卻，不會鬼叫個不停）
+    if (this.cryCd <= 0) { this.cryCd = 0.3; hitCry(this.kind, false); }
   }
 
   // 陣亡：直接轉著飛出場外
@@ -296,9 +305,10 @@ export class Enemy {
     this.vel.set(d.x * 11 + (Math.random() - 0.5) * 3, 12 + Math.random() * 3, d.z * 11 + (Math.random() - 0.5) * 3);
     this.spinAxis = Math.random() * Math.PI * 2;
     for (const m of this.materials) m.transparent = true;
+    hitCry(this.kind, true);            // ★ 被擊飛出場：慘叫 + 往下掉的長音
   }
 
-  update(dt, player, onPlayerHit) {
+  update(dt, player, onPlayerHit, others = []) {
     if (this.burn > 0) {
       this.burn -= dt;
       this.health -= this.burnDps * dt;
@@ -321,21 +331,58 @@ export class Enemy {
       return;
     }
 
-    // 追玩家 → 撞人
+    // ---- 在球場上「慢速亂晃」：挑巡邏點慢慢走過去 → 休息 → 再挑下一個點 ----
+    // 只有一部分對手（aggr 高的）在你靠近時會想靠過來，其他人都自己逛大街
     const dx = player.pos.x - this.pos.x;
     const dz = player.pos.z - this.pos.z;
     const dist = Math.hypot(dx, dz);
-    this.yaw = Math.atan2(dx, dz);
-    const spd = this.cfg.speed * (this.burn > 0 ? 0.85 : 1);
-    if (dist > 1.1) {
-      this.vel.x = (dx / (dist || 1)) * spd;
-      this.vel.z = (dz / (dist || 1)) * spd;
-    } else {
-      this.vel.x *= 0.5; this.vel.z *= 0.5;
+    this.cryCd = Math.max(0, this.cryCd - dt);
+    this.roamT -= dt;
+    const arrived = Math.abs(this.tgt.x - this.pos.x) < 0.9 && Math.abs(this.tgt.z - this.pos.z) < 0.9;
+    if (this.roamT <= 0 || arrived) {
+      for (let tries = 0; tries < 10; tries++) {
+        const px = this.world.cx + (Math.random() * 2 - 1) * 10.5;
+        const pz = this.world.cz + (Math.random() * 2 - 1) * 8.5;
+        if (!this.world.isSolid(px, 1, pz)) { this.tgt.x = px; this.tgt.z = pz; break; }
+      }
+      this.roamT = 3 + Math.random() * 5;
+      this.pauseT = Math.random() < 0.4 ? 0.7 + Math.random() * 1.5 : 0;   // 有時停下來發呆
     }
+
+    let tx = this.tgt.x - this.pos.x, tz = this.tgt.z - this.pos.z;
+    const tl = Math.hypot(tx, tz) || 1;
+    tx /= tl; tz /= tl;
+    const wantPlayer = dist < 5 && this.aggr > 0.62;      // 少數人才會靠近你
+    if (wantPlayer) { tx = dx / (dist || 1); tz = dz / (dist || 1); }
+
+    let sp = this.cfg.speed * (this.burn > 0 ? 0.85 : 1) * 0.42;   // ★ 慢速（原本是直接衝過來）
+    if (this.pauseT > 0) { this.pauseT -= dt; sp = 0; }
+    if (wantPlayer && dist > 2.2) sp *= 1.3;
+
+    // 同伴靠太近就互相推開 → 不會全部疊在同一格
+    let px = 0, pz = 0;
+    for (const o of others) {
+      if (o === this || !o.alive || o.flung) continue;
+      const ox = this.pos.x - o.pos.x, oz = this.pos.z - o.pos.z;
+      const od = Math.hypot(ox, oz);
+      if (od > 0.01 && od < 2.4) { px += (ox / od) * (2.4 - od); pz += (oz / od) * (2.4 - od); }
+    }
+    const nx2 = tx + px * 1.1, nz2 = tz + pz * 1.1;
+    const nl = Math.hypot(nx2, nz2) || 1;
+    this.vel.x = (nx2 / nl) * sp + px * 0.9;
+    this.vel.z = (nz2 / nl) * sp + pz * 0.9;
+    // ★ 不要太貼近玩家（不然會站到你身上、畫面被他的頭塞滿）
+    if (dist < 1.3 && dist > 0.001) {
+      const k = (1.3 - dist) / 1.3;
+      this.vel.x -= (dx / dist) * 3.4 * k;
+      this.vel.z -= (dz / dist) * 3.4 * k;
+    }
+    if (sp === 0 && px === 0 && pz === 0) { this.vel.x *= 0.55; this.vel.z *= 0.55; }
+    this.yaw = sp > 0.02 ? Math.atan2(this.vel.x, this.vel.z) : Math.atan2(dx, dz);
+
     this.tackleCd = Math.max(0, this.tackleCd - dt);
-    if (dist < 1.5 && this.tackleCd <= 0 && player.alive) {
-      this.tackleCd = 1.3;
+    if (dist < 1.4 && this.tackleCd <= 0 && player.alive) {
+      this.tackleCd = 1.9;                                   // 出腳間隔拉長，不會一直被圍毆
       if (player.damage(this.cfg.tackleDamage)) {
         if (onPlayerHit) onPlayerHit(this.cfg.tackleDamage);
         const kx = dx / (dist || 1), kz = dz / (dist || 1);
@@ -412,7 +459,7 @@ export class EnemyManager {
         const l = Math.hypot(wx, wz) || 1;
         e.cfg.flyDir = { x: wx / l, z: wz / l };
       }
-      e.update(dt, player, onPlayerHit);
+      e.update(dt, player, onPlayerHit, this.list);
       // 敵人互相推開（不要疊在一起）
       for (const o of this.list) {
         if (o === e || !o.alive || !e.alive) continue;

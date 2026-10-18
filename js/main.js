@@ -6,6 +6,7 @@ import { Footballs, BALLS } from './balls.js';
 import { Controls } from './controls.js';
 import { VERSION } from './version.js';
 import { ballTexture, logoTexture, badgeMaterial } from './logo.js';
+import { initAudio, kickSound, waveClearSound } from './sfx.js';
 
 // 讓整個遊戲用同一個「足球花紋」貼圖（球場上的球、手上的球都一樣）
 const BALL_TEX = ballTexture();
@@ -161,6 +162,7 @@ function startWave(n) {
 }
 
 function startGame() {
+  initAudio();                                  // 使用者點了才啟動音效（iOS 限制）
   el('overlay').classList.add('hidden');
   hud.classList.remove('hidden');
   el('touch').classList.toggle('hidden', !isTouch);
@@ -186,6 +188,8 @@ function backToMenu() {
 // ----------------------------- input -------------------------------------
 const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches || 'ontouchstart' in window;
 el('btn-start').addEventListener('click', startGame);
+// 保險：任何點擊都嘗試解鎖音效（iOS / Safari 需要使用者手勢）
+document.addEventListener('pointerdown', () => initAudio(), { once: true });
 el('btn-pause-resume').addEventListener('click', () => setPaused(false));
 el('btn-pause-menu').addEventListener('click', backToMenu);
 
@@ -236,6 +240,7 @@ function loop(now) {
         camera.position.z + dir.z * 0.55
       );
       balls.fire(origin, dir, player.vel);
+      kickSound(1);                                   // 踢球音效
     }
     prevFiring = firing;
 
@@ -258,6 +263,7 @@ function loop(now) {
     // 一波清空 → 下一波
     if (!betweenWaves && enemyMgr.list.length === 0 && enemyMgr.aliveCount() === 0) {
       betweenWaves = true;
+      waveClearSound();                                   // 清空一波的歡呼音
       setTimeout(() => { if (running && !paused) startWave(wave + 1); }, 2200);
     }
 
