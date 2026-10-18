@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#101a12" />
+<title>LS 特輯 — 街頭足球</title>
+<link rel="stylesheet" href="styles.css" />
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="crosshair">
+    <span class="ch-dot"></span>
+    <span class="ch-line top"></span>
+    <span class="ch-line bottom"></span>
+    <span class="ch-line left"></span>
+    <span class="ch-line right"></span>
+  </div>
+
+  <div id="hitmarker"></div>
+  <div id="damage-vignette"></div>
+
+  <div id="topleft">
+    <div class="stat"><span id="wave">1</span> <small>波次</small></div>
+    <div class="stat"><span id="kills">0</span> <small>擊飛對手</small></div>
+    <div class="stat"><span id="enemies-left">0</span> <small>場上對手</small></div>
+    <div class="stat"><span id="head-name">—</span> <small>最後擊飛</small></div>
+  </div>
+
+  <div id="bottomleft">
+    <div id="ward" class="hidden">🛡 無敵 <b id="ward-sec">5.0</b> 秒</div>
+    <div class="hp-wrap">
+      <div id="hp-bar"></div>
+      <span id="hp-text">100</span>
+    </div>
+  </div>
+
+  <div id="bottomright">
+    <div id="weapon-name">⚽ 一般直球</div>
+    <div id="ball-cd"><div id="ball-cd-fill"></div></div>
+    <div id="ball-list">
+      <span class="bl active" data-b="0">⚽ 直球</span>
+      <span class="bl" data-b="1">🔥 火焰球</span>
+      <span class="bl" data-b="2">🌀 旋風球</span>
+    </div>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<!-- ===== 手機／平板觸控 ===== -->
+<div id="touch" class="hidden">
+  <div id="joy-base" class="hidden"><div id="joy-knob"></div></div>
+  <div class="tright">
+    <div id="btn-fire" class="tbtn fire">射門</div>
+    <div id="btn-jump" class="tbtn small">跳</div>
+    <div id="btn-pause" class="tbtn small">⏸<small>暫停</small></div>
+  </div>
+  <div id="wswitch">
+    <div class="wbtn active" data-w="0" data-ico="⚽" data-lbl="直球">⚽<small>直球</small></div>
+    <div class="wbtn" data-w="1" data-ico="🔥" data-lbl="火焰球">🔥<small>火焰球</small></div>
+    <div class="wbtn" data-w="2" data-ico="🌀" data-lbl="旋風球">🌀<small>旋風球</small></div>
+  </div>
+</div>
+
+<!-- ===== 主選單 ===== -->
+<div id="overlay">
+  <div class="panel">
+    <img id="logo-img" src="./assets/logo.png" alt="LS 特輯" />
+    <h1>LS <span>特輯</span></h1>
+    <p class="sub">街頭足球大亂鬥 · 5 人制球場 · 把對手踢出場外</p>
+    <details class="howto-box">
+      <summary>📖 操作說明（點一下展開／收起）</summary>
+      <div class="howto">
+        <div><b>🖥 電腦</b>：WASD 移動 · 滑鼠轉視角 · <b>左鍵射門</b> · <b>1 / 2 / 3</b> 換球種 · 空白鍵跳 · Esc 暫停</div>
+        <div><b>📱 iPad</b>：左半螢幕拖曳 = 移動 · 右半螢幕拖曳 = 轉視角 · 右下「射門」按鈕 · 右上角切換球種</div>
+      </div>
+    </details>
+    <div class="ball-cards">
+      <div class="bcard"><b>⚽ 一般直球</b><span>又直又快，最好控制</span></div>
+      <div class="bcard"><b>🔥 火焰球</b><span>命中會燒起來＋小爆炸</span></div>
+      <div class="bcard"><b>🌀 旋風旋球</b><span>會轉彎、把人轉著擊飛（可穿透）</span></div>
+    </div>
+    <button id="btn-start">開始比賽</button>
+    <p class="tip">🏟 五人制球場四周只有<b>鐵網</b>圍著，球會反彈 · 🥅 兩端有球門 · 💀 對手被打到沒血會<b>直接飛出場外</b> · 對手是鱷魚／恐龍／漢堡／金剛／小牛／紅鷹／紅豹／爆炸頭紅衣教練</p>
+    <p class="ver" id="ver-line">v1.0</p>
+  </div>
+</div>
+
+<!-- ===== 暫停 ===== -->
+<div id="pause" class="hidden">
+  <div class="panel">
+    <h2>⏸ 暫停</h2>
+    <p id="pause-info"></p>
+    <button id="btn-pause-resume">▶ 繼續比賽</button>
+    <button id="btn-pause-menu" class="ghost">🏠 回主選單</button>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
